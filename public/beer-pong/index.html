@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Beer Pong – Side View</title>
+<style>
+  :root {
+    --bg1:#0b0d12;
+    --bg2:#121520;
+    --wood:#7a5232;
+    --wood2:#5e3f27;
+    --accent:#e11d48;
+    --text:#e8e8ea;
+    --safe-top:env(safe-area-inset-top, 0px);
+    --safe-right:env(safe-area-inset-right, 0px);
+    --safe-bottom:env(safe-area-inset-bottom, 0px);
+    --safe-left:env(safe-area-inset-left, 0px);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0; background:linear-gradient(180deg,var(--bg1),var(--bg2)); color:var(--text); font:14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto}
+  .wrap{
+    width:100%;
+    min-height:100dvh;
+    margin:0 auto;
+    padding:calc(var(--safe-top) + 12px) calc(var(--safe-right) + 12px) calc(var(--safe-bottom) + 12px) calc(var(--safe-left) + 12px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .game-shell{
+    width:min(1100px, 100%);
+    display:grid;
+    gap:10px;
+  }
+  .game-controls{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .title{margin:0 0 10px; font-weight:600; letter-spacing:.2px}
+  .stage{
+    position:relative;
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:0 10px 30px rgba(0,0,0,.35);
+    touch-action:none;
+    overscroll-behavior:none;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-touch-callout:none;
+  }
+  canvas{
+    display:block;
+    width:100%;
+    height:auto;
+    background:radial-gradient(1200px 600px at 50% -20%, #1f2635 0%, #0f1320 60%, #0c0f19 100%);
+    touch-action:none;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-touch-callout:none;
+  }
+  .hud{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:10px}
+  .btn{
+    appearance:none;
+    border:1px solid #fff2;
+    background:#fff0;
+    color:var(--text);
+    padding:10px 14px;
+    border-radius:10px;
+    cursor:pointer;
+    transition:.15s, transform .15s;
+    min-height:44px;
+    min-width:44px;
+    font-size:15px;
+    line-height:1.1;
+  }
+  .btn:hover{background:#fff1}
+  .btn-primary{background:var(--accent); border-color:transparent; color:#fff; font-weight:600; padding:12px 18px; font-size:16px; border-radius:12px; box-shadow:0 6px 16px rgba(225,29,72,.35);}
+  .btn-primary:hover{filter:brightness(1.05); transform:translateY(-1px)}
+  .btn-reset{ margin-left:auto; }
+  .btn-fs{ background:rgba(15,19,32,.85); }
+  .btn-exit{ display:none; background:rgba(15,19,32,.85); }
+  .btn-exit.show{ display:inline-flex; }
+  .start-overlay{
+    position:absolute;
+    inset:0;
+    z-index:7;
+    background:linear-gradient(180deg, rgba(7,10,16,.68), rgba(7,10,16,.86));
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .start-overlay[hidden]{display:none}
+  .start-panel{
+    width:min(420px, 100%);
+    border-radius:16px;
+    border:1px solid rgba(255,255,255,0.18);
+    background:rgba(10,14,23,0.84);
+    box-shadow:0 16px 40px rgba(0,0,0,.35);
+    padding:18px 16px;
+    text-align:center;
+  }
+  .start-title{margin:0 0 8px; font-size:clamp(20px, 4.8vw, 28px); font-weight:700}
+  .start-copy{margin:0 0 12px; opacity:.82}
+  .start-actions{display:grid; gap:10px}
+  .orientation-badge{
+    display:inline-block;
+    font-size:12px;
+    margin-top:8px;
+    opacity:.72;
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.15);
+    border-radius:999px;
+    padding:4px 10px;
+  }
+  .hint{opacity:.75}
+  @media (min-width: 900px){
+    .wrap{padding:16px}
+  }
+  @media (max-width: 640px){
+    .btn{font-size:14px}
+    .game-shell{gap:8px}
+    .game-controls{gap:8px}
+  }
+  body.embedded .wrap{
+    padding:4px;
+    min-height:100%;
+  }
+  body.embedded .game-shell{
+    width:100%;
+    height:100%;
+    gap:6px;
+  }
+  body.embedded .btn{
+    min-height:40px;
+    padding:8px 10px;
+    font-size:13px;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="game-shell">
+      <div class="game-controls">
+        <button id="fullscreen" class="btn btn-fs" aria-label="Vollbild umschalten">Vollbild</button>
+        <button id="exitFullscreen" class="btn btn-exit" aria-label="Vollbild verlassen">Vollbild beenden</button>
+        <button id="reset" class="btn btn-primary btn-reset" aria-label="Neues Spiel starten">Neues Spiel</button>
+      </div>
+      <div id="stage" class="stage">
+        <canvas id="game" aria-label="Beer Pong Spielfeld"></canvas>
+        <div id="startOverlay" class="start-overlay" hidden>
+          <div class="start-panel">
+            <h1 class="start-title">Beer Pong Training</h1>
+            <p id="startCopy" class="start-copy">Ball greifen, ziehen, loslassen. Auf Mobilgeraten wirkt es am besten im Querformat.</p>
+            <div class="start-actions">
+              <button id="startGame" class="btn btn-primary" aria-label="Spiel starten">Spiel starten</button>
+              <button id="startFullscreen" class="btn" aria-label="Spiel im Vollbild starten">Start im Vollbild</button>
+            </div>
+            <span class="orientation-badge">Empfohlen: Querformat</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const VERSION = "2.0.0";
+  // ===== Canvas + DPR =====
+  const stage = document.getElementById('stage');
+  const overlayEl = document.getElementById('startOverlay');
+  const startGameBtn = document.getElementById('startGame');
+  const startFullscreenBtn = document.getElementById('startFullscreen');
+  const startCopyEl = document.getElementById('startCopy');
+  const fullscreenBtn = document.getElementById('fullscreen');
+  const exitFullscreenBtn = document.getElementById('exitFullscreen');
+  const cvs = document.getElementById('game');
+  const ctx = cvs.getContext('2d');
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isEmbedded = window.self !== window.top;
+  if (isEmbedded) document.body.classList.add('embedded');
+  let W = 960, H = 540;       // Logisches Koordinatensystem
+  const coarsePointerMQ = window.matchMedia('(pointer: coarse)');
+  let prefersCoarseInput = coarsePointerMQ.matches;
+  let isPortraitViewport = window.innerHeight >= window.innerWidth;
+  let currentDPR = 1;
+  let resizeRaf = null;
+
+  function getCanvasDpr(){
+    const raw = window.devicePixelRatio || 1;
+    const smallViewport = Math.min(window.innerWidth, window.innerHeight) < 920;
+    if (prefersCoarseInput || smallViewport) return Math.max(1, Math.min(2, raw));
+    return Math.max(1, Math.min(4, raw));
+  }
+
+  function resize() {
+    const ratio = H/W; // fix aspect
+    const viewportH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const availW = Math.min(1100, Math.max(280, window.innerWidth - 24));
+    const availH = Math.max(220, viewportH - 24);
+    const bw = Math.floor(Math.min(availW, availH / ratio));
+    currentDPR = getCanvasDpr();
+    cvs.width = Math.round(W * currentDPR);
+    cvs.height = Math.round(H * currentDPR);
+    stage.style.width = bw + 'px';
+    stage.style.height = Math.round(bw * ratio) + 'px';
+    ctx.setTransform(currentDPR,0,0,currentDPR,0,0);
+    isPortraitViewport = viewportH >= window.innerWidth;
+  }
+
+  function scheduleResize(){
+    if (resizeRaf !== null) return;
+    resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = null;
+      resize();
+    });
+  }
+
+  function shouldShowStartOverlay(){ return false; }
+
+  function setOverlayVisible(visible){
+    if (!overlayEl) return;
+    overlayEl.hidden = !visible;
+  }
+
+  function getFullscreenElement(){
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+
+  function canRequestFullscreen(){
+    return !!(stage && (stage.requestFullscreen || stage.webkitRequestFullscreen));
+  }
+
+  function getFullscreenUnsupportedMessage(){
+    if (isEmbedded){
+      return 'Im eingebetteten Modus ist Vollbild limitiert. Offne das Spiel direkt fur die beste Darstellung.';
+    }
+    if (isIOS){
+      return 'iPhone Safari blockiert Element-Vollbild. Nutze Teilen > Zum Home-Bildschirm fur echten Vollbildmodus.';
+    }
+    return 'Vollbild wird von diesem Browser fur diese Seite nicht unterstutzt.';
+  }
+
+  function openStandaloneGame(){
+    const targetUrl = '/beer-pong/index.html?standalone=1';
+    try {
+      if (isEmbedded && window.top) {
+        window.top.location.href = targetUrl;
+        return true;
+      }
+      window.location.href = targetUrl;
+      return true;
+    } catch (_) {
+      const w = window.open(targetUrl, '_blank');
+      return !!w;
+    }
+  }
+
+  function endGameAndLeave(){
+    if (window.history.length > 1){
+      window.history.back();
+      return;
+    }
+    window.location.href = '/ueben';
+  }
+
+  async function requestFullscreenIfPossible(){
+    const requestFn = stage && (stage.requestFullscreen || stage.webkitRequestFullscreen);
+    if (!requestFn || getFullscreenElement()) return false;
+    try {
+      const result = requestFn.call(stage);
+      if (result && typeof result.then === 'function') await result;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  async function exitFullscreenIfPossible(){
+    const exitFn = document.exitFullscreen || document.webkitExitFullscreen;
+    if (!exitFn || !getFullscreenElement()) return false;
+    try {
+      const result = exitFn.call(document);
+      if (result && typeof result.then === 'function') await result;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function updateFullscreenButton(){
+    if (!fullscreenBtn) return;
+    const active = !!getFullscreenElement();
+    if (exitFullscreenBtn) {
+      const canExitFs = active && !isEmbedded;
+      exitFullscreenBtn.classList.toggle('show', canExitFs);
+      exitFullscreenBtn.textContent = 'Vollbild beenden';
+      exitFullscreenBtn.setAttribute('aria-label', 'Vollbild verlassen');
+    }
+    if (isEmbedded){
+      fullscreenBtn.textContent = 'Spiel offnen';
+      fullscreenBtn.setAttribute('aria-label', 'Spiel in voller Seite offnen');
+      return;
+    }
+    const supported = canRequestFullscreen();
+    if (!supported){
+      fullscreenBtn.textContent = 'Spiel beenden';
+      fullscreenBtn.setAttribute('aria-label', 'Spiel beenden');
+      return;
+    }
+    fullscreenBtn.textContent = 'Vollbild';
+    fullscreenBtn.setAttribute('aria-label', 'Vollbild aktivieren');
+  }
+
+  resize();
+  setOverlayVisible(shouldShowStartOverlay());
+  updateFullscreenButton();
+  if (!canRequestFullscreen() || isEmbedded){
+    if (startFullscreenBtn){
+      startFullscreenBtn.textContent = isEmbedded ? 'Spiel in voller Seite' : 'Spiel beenden';
+      startFullscreenBtn.setAttribute('aria-label', isEmbedded ? 'Spiel in voller Seite offnen' : 'Spiel beenden');
+    }
+    if (startCopyEl && (isIOS || isEmbedded)){
+      startCopyEl.textContent = isEmbedded
+        ? 'Ball greifen, ziehen, loslassen. Fur die beste mobile Ansicht offne das Spiel in voller Seite.'
+        : 'Ball greifen, ziehen, loslassen. iPhone Safari kann kein echtes Element-Vollbild; fur App-Vollbild: Teilen > Zum Home-Bildschirm.';
+    }
+  }
+  window.addEventListener('resize', scheduleResize);
+  window.addEventListener('orientationchange', scheduleResize);
+  if (window.visualViewport){
+    window.visualViewport.addEventListener('resize', scheduleResize);
+    window.visualViewport.addEventListener('scroll', scheduleResize);
+  }
+  document.addEventListener('fullscreenchange', updateFullscreenButton);
+  document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
+
+  // ===== Szene-Parameter (Side View) =====
+  const TABLE_Y = H - 120;               // Tischoberkante
+  const LAUNCH = { x: 120, y: TABLE_Y - 8 };
+  const MAX_SPEED = 2050;                // maximale Anfangsgeschwindigkeit (px/s)
+  const THROW_SCALE = 8.2;               // Skala von Drag-Länge -> Startgeschwindigkeit
+  const BALL_R = 8.5;
+  // Sim läuft intern mit m/s und wird per fixer Skala in Canvas-Pixel gemappt.
+  const PHYSICS_PX_PER_M = BALL_R / 0.02; // 20 mm Radius (Tischtennisball)
+  const GRAVITY_MPS2 = 9.81;
+  const AIR_DRAG_QUADRATIC = 0.135; // ~1/m (quadratischer Luftwiderstand)
+  const OMEGA_TO_RAD = 12;          // visuelle Omega-Units -> rad/s
+  const OFFICIAL_RULESET = true;
+  const CUPS_LIFT = 10;          // px über die Bounce-Ebene (TABLE_Y - BALL_R) anheben
+  const SINGLE_CUP_TEST = false; // alle Becher aktiv
+  const ALWAYS_SINK = false;
+  // Physik: fester Zeitschritt + quadratischer Luftwiderstand
+  const FIXED_DT = 1/60;     // 60 Hz Physik
+  const MAX_ACCUM = 0.25;    // max. nachzuholende Zeit (s)
+  const GOD_GATE_EASE = 2;
+  const RESET_DELAY = 0.52;
+  const ALWAYS_SINK_CONTACT_MODE = false; // Kontaktbasierter God-Mode AUS (nur Ebenenschnitt zählt)
+  const WALL_REST = 0.68;   // Rückprallfaktor an der Cup-Außenwand
+  const WALL_TANG = 0.90;   // tangentiale Dämpfung (Geschwindigkeit parallel zur Wand)
+  // Tischkontakt-Parameter (realistische Korridore für TT-Ball auf Holz/laminiertem Tisch)
+  const TABLE_RESTITUTION_BASE = 0.90;      // ITTF-nah
+  const TABLE_RESTITUTION_MIN = 0.84;       // bei harten Impacts leicht niedriger
+  const TABLE_RESTITUTION_SPEED_DROP = 0.006; // e(vn) = base - drop * |vn[m/s]|
+  const TABLE_MU_DYNAMIC = 0.20;
+  const TABLE_MU_STATIC = 0.31;
+  const BALL_INERTIA_RATIO = 2 / 3;         // dünnwandige Kugel
+  const STATIC_SLIP_EPS_MPS = 0.08;
+  const ROLLING_FRICTION_MPS2 = 1.45;
+  const ROLL_LOCK_RATE = 12.0;
+  const ROLLING_SPIN_DAMPING = 3.8;
+  const BOUNCE_SLEEP_NORMAL_MPS = 0.24;
+  const BOUNCE_SLEEP_TANGENTIAL_MPS = 0.18;
+  const BOUNCE_SLEEP_SLIP_MPS = 0.15;
+  const ROLLING_SLEEP_SPEED_MPS = 0.08;
+  const ROLLING_SLEEP_OMEGA_RAD = 5.5;
+  const ROLLING_SETTLE_TIME = 0.24;
+  const CUP_INNER_GATE_SHRINK = 0.72;
+  const CUP_LIP_GATE_SHRINK = 0.24;
+  const CUP_MIN_ENTRY_VY = 170;
+  const IDEAL_THROW_SPEED = 1350;
+  const MAX_THROW_DIST = 260;
+
+  // Tuning / Debug
+  const MIN_SUB_STEPS = 12;
+  const MAX_SUB_STEPS = 36;
+  const MAX_SUBSTEP_TRAVEL_PX = BALL_R * 0.45; // adaptive Substeps gegen Tunneling
+  const EPS_T = 0.006;           // Zeit-Toleranz: Plane darf minimal nach Rim liegen und zählt trotzdem als Sink
+
+  // 4-3-2-1 Cups, gleichmäßig, keine Überlappung, keine perspektivische Skalierung
+  function buildCups() {
+    // Einheitliche Bechergröße, keine perspektivische Skalierung
+    const RX = 28;                 // Öffnungsradius x (px)
+    const RY = RX * 0.55;          // Öffnungsradius y (Ellipse)
+    const GAP_X = RX * 2.20;       // etwas größerer horizontaler Abstand
+    const ROW_OFF = RY * 2.25;     // vertikaler Reihenabstand auf Ellipsenhöhe bezogen
+    const baseX = W - 260;         // Start rechts
+    const baseY = TABLE_Y - (BALL_R + CUPS_LIFT); // Öffnung klar über Tisch-Bounce-Ebene
+    const rows = [4,3,2,1];
+
+    const cups = [];
+    let row = 0;
+    for (const n of rows) {
+      const y = baseY - row * ROW_OFF;
+      const startX = baseX - (n - 1) * GAP_X * 0.5;
+      for (let i = 0; i < n; i++) {
+        cups.push({ id: cups.length, cx: startX + i * GAP_X, cy: y, r: RX, ry: RY, hit: false, vanish: 0, wobble: 0, wobbleT: 0 });
+      }
+      row++;
+    }
+    return cups;
+  }
+  // Earliest intersection t in [0,1] for segment with an ellipse with radii (rx, ry)
+  function segmentEllipseFirstT(px, py, nx, ny, cx, cy, rx, ry){
+    // Transform to ellipse-local normalized space so ellipse becomes unit circle
+    const sx = 1 / rx, sy = 1 / ry;
+    const px2 = (px - cx) * sx, py2 = (py - cy) * sy;
+    const nx2 = (nx - cx) * sx, ny2 = (ny - cy) * sy;
+    // Now intersect with unit circle at origin
+    return segmentCircleFirstT(px2, py2, nx2, ny2, 0, 0, 1);
+  }
+
+  // Earliest hit with ellipse within a thin vertical band around the rim plane (|y-cy|<=band)
+  // Returns { t, hx, hy } or null
+  function segmentEllipseBandFirstHit(px, py, nx, ny, cx, cy, rx, ry, band){
+    // Transform to ellipse-normalized space (ellipse -> unit circle)
+    const sx = 1 / rx, sy = 1 / ry;
+    const px2 = (px - cx) * sx, py2 = (py - cy) * sy;
+    const nx2 = (nx - cx) * sx, ny2 = (ny - cy) * sy;
+    // Segment-circle intersection in normalized space (unit circle at origin)
+    const dx = nx2 - px2, dy = ny2 - py2;
+    const fx = px2, fy = py2;
+    const a = dx*dx + dy*dy;
+    const b = 2*(fx*dx + fy*dy);
+    const c = fx*fx + fy*fy - 1;
+    const D = b*b - 4*a*c;
+    if (D < 0 || a === 0) return null;
+    const sqrtD = Math.sqrt(D);
+    const inv = 1/(2*a);
+    // Two candidates in [0,1]
+    const t1 = (-b - sqrtD) * inv;
+    const t2 = (-b + sqrtD) * inv;
+    let best = null;
+    function consider(t){
+      if (t < 0 || t > 1) return;
+      const hx = px + (nx - px) * t;
+      const hy = py + (ny - py) * t;
+      if (Math.abs(hy - cy) <= band){
+        if (best === null || t < best.t) best = { t, hx, hy };
+      }
+    }
+    consider(t1); consider(t2);
+    return best;
+  }
+
+  // ===== Spielzustand =====
+  let cups = buildCups();
+  let cupDrawOrder = [];
+  function rebuildCupDrawOrder(){
+    cupDrawOrder = cups.map((_, idx) => idx).sort((a, b) => cups[a].cy - cups[b].cy);
+  }
+  rebuildCupDrawOrder();
+  // ===== Runtime =====
+  const PREVIEW_CAP = 220;
+  const previewPointsX = new Float32Array(PREVIEW_CAP);
+  const previewPointsY = new Float32Array(PREVIEW_CAP);
+  const state = {
+    aiming:false, showPreview:false,
+    ball: { x: LAUNCH.x, y: LAUNCH.y, px: LAUNCH.x, py: LAUNCH.y, vx:0, vy:0, omega:0, onTable:false, restTime:0, active:false },
+    lastT: null, acc:0,
+    resetTimer: 0,
+    throws: 0,
+    won:false,
+    score: 0,
+    combo: 0,
+    bestCombo: 0,
+    feedback: 'Zieh den Ball nach oben-rechts und lass los.',
+    feedbackTimer: 4.5,
+    shake: 0,
+    particles: [],
+    shot: { rimHits: 0, wallHits: 0, tableBounce: false, releasedSpeed: 0, entrySpeed: 0 }
+  };
+  const handleCoarseInputChange = (e) => {
+    prefersCoarseInput = e.matches;
+    setOverlayVisible(shouldShowStartOverlay() && !state.ball.active && state.throws === 0);
+    scheduleResize();
+  };
+  if (coarsePointerMQ.addEventListener) coarsePointerMQ.addEventListener('change', handleCoarseInputChange);
+  else if (coarsePointerMQ.addListener) coarsePointerMQ.addListener(handleCoarseInputChange);
+
+  // ===== Eingabe: Drag‑Aim =====
+  const resetBtn = document.getElementById('reset');
+
+  function canvasToLocal(e){
+    const rect = cvs.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (W / rect.width);
+    const y = (e.clientY - rect.top) * (H / rect.height);
+    return {x, y};
+  }
+
+  let drag = { active:false, sx:0, sy:0, x:0, y:0 };
+
+  function clamp(v, min, max){ return Math.min(max, Math.max(min, v)); }
+  function clampInt(v, min, max){ return Math.min(max, Math.max(min, Math.trunc(v))); }
+  function rand(min, max){ return min + Math.random() * (max - min); }
+  function addShake(amount){ state.shake = Math.max(state.shake, amount); }
+  let lastHapticAt = 0;
+  let audioCtx = null;
+  let audioUnlocked = false;
+  function pulseHaptic(pattern = 8, minIntervalMs = 65){
+    if (!('vibrate' in navigator)) return;
+    const now = performance.now();
+    if (now - lastHapticAt < minIntervalMs) return;
+    lastHapticAt = now;
+    try { navigator.vibrate(pattern); } catch (_) {}
+  }
+  function unlockAudioContext(){
+    if (audioUnlocked) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx){
+      audioUnlocked = true;
+      return;
+    }
+    try {
+      if (!audioCtx) audioCtx = new Ctx();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      audioUnlocked = true;
+    } catch (_) {}
+  }
+  function blockNativeGesture(ev){
+    if (ev && ev.cancelable) ev.preventDefault();
+  }
+  function pxToM(vPx){ return vPx / PHYSICS_PX_PER_M; }
+  function mToPx(vM){ return vM * PHYSICS_PX_PER_M; }
+
+  function computeSubsteps(vxPx, vyPx, dt){
+    const travel = Math.hypot(vxPx, vyPx) * dt;
+    return clampInt(
+      Math.ceil(travel / Math.max(1, MAX_SUBSTEP_TRAVEL_PX)),
+      MIN_SUB_STEPS,
+      MAX_SUB_STEPS
+    );
+  }
+
+  function kineticEnergy(vxM, vyM, omegaRad){
+    const rM = pxToM(BALL_R);
+    return 0.5 * (vxM * vxM + vyM * vyM + BALL_INERTIA_RATIO * rM * rM * omegaRad * omegaRad);
+  }
+
+  function integrateAirVelocity(vxPx, vyPx, dt){
+    let vxM = pxToM(vxPx);
+    let vyM = pxToM(vyPx);
+    // Semi-implicit Euler: zuerst Beschleunigung, dann Ortsupdate.
+    vyM += GRAVITY_MPS2 * dt;
+    const speed = Math.hypot(vxM, vyM);
+    if (speed > 1e-5){
+      const drag = AIR_DRAG_QUADRATIC * speed;
+      vxM -= vxM * drag * dt;
+      vyM -= vyM * drag * dt;
+    }
+    return { vx: mToPx(vxM), vy: mToPx(vyM) };
+  }
+
+  function integrateRollingOnTable(ball, dt){
+    const rM = pxToM(BALL_R);
+    let vxM = pxToM(ball.vx);
+    let omegaRad = ball.omega * OMEGA_TO_RAD;
+    const sign = Math.sign(vxM);
+    if (sign !== 0){
+      const dv = ROLLING_FRICTION_MPS2 * dt;
+      vxM = Math.abs(vxM) <= dv ? 0 : vxM - sign * dv;
+    }
+    const omegaTarget = vxM / Math.max(rM, 1e-6);
+    const lockRate = (Math.abs(vxM) < 0.22 ? TABLE_MU_STATIC : TABLE_MU_DYNAMIC) * ROLL_LOCK_RATE;
+    omegaRad += (omegaTarget - omegaRad) * Math.min(1, dt * lockRate);
+    omegaRad *= Math.exp(-ROLLING_SPIN_DAMPING * dt);
+    ball.vx = mToPx(vxM);
+    ball.vy = 0;
+    ball.omega = omegaRad / OMEGA_TO_RAD;
+    ball.y = TABLE_Y - BALL_R;
+  }
+
+  function resolveTableBounce(ball, contactY){
+    const rM = pxToM(BALL_R);
+    const vxInM = pxToM(ball.vx);
+    const vyInM = pxToM(ball.vy);
+    const omegaIn = ball.omega * OMEGA_TO_RAD;
+    const vnIn = -vyInM; // n=(0,-1), vy>0 bedeutet Abwärtsbewegung
+    if (vnIn >= -1e-5){
+      ball.y = contactY;
+      return;
+    }
+
+    const speedN = Math.abs(vnIn);
+    const eN = clamp(
+      TABLE_RESTITUTION_BASE - TABLE_RESTITUTION_SPEED_DROP * speedN,
+      TABLE_RESTITUTION_MIN,
+      TABLE_RESTITUTION_BASE
+    );
+    const jn = -(1 + eN) * vnIn;
+    const vtIn = vxInM;
+    const slipIn = vtIn - omegaIn * rM;
+    const mu = Math.abs(slipIn) < STATIC_SLIP_EPS_MPS ? TABLE_MU_STATIC : TABLE_MU_DYNAMIC;
+    const jtLimit = mu * jn;
+    const jtUnclamped = -slipIn / (1 + 1 / BALL_INERTIA_RATIO);
+    const jt = clamp(jtUnclamped, -jtLimit, jtLimit);
+
+    let vtOut = vtIn + jt;
+    let vnOut = -eN * vnIn;
+    let omegaOut = omegaIn - jt / (BALL_INERTIA_RATIO * Math.max(rM, 1e-6));
+
+    const eIn = kineticEnergy(vxInM, vyInM, omegaIn);
+    let vxOutM = vtOut;
+    let vyOutM = -vnOut;
+    let eOut = kineticEnergy(vxOutM, vyOutM, omegaOut);
+    if (eOut > eIn + 1e-6){
+      const scale = Math.sqrt(Math.max(0, (eIn * 0.9995) / eOut));
+      vxOutM *= scale;
+      vyOutM *= scale;
+      omegaOut *= scale;
+      vtOut = vxOutM;
+      vnOut = -vyOutM;
+      eOut = kineticEnergy(vxOutM, vyOutM, omegaOut);
+      if (!Number.isFinite(eOut)){
+        vxOutM = 0;
+        vyOutM = 0;
+        omegaOut = 0;
+      }
+    }
+
+    const slipOut = vtOut - omegaOut * rM;
+    const shouldSleepBounce = (
+      Math.abs(vnOut) < BOUNCE_SLEEP_NORMAL_MPS &&
+      Math.abs(vtOut) < BOUNCE_SLEEP_TANGENTIAL_MPS &&
+      Math.abs(slipOut) < BOUNCE_SLEEP_SLIP_MPS
+    );
+
+    ball.vx = mToPx(vxOutM);
+    ball.vy = mToPx(vyOutM);
+    ball.omega = omegaOut / OMEGA_TO_RAD;
+    ball.y = contactY;
+    ball.onTable = shouldSleepBounce;
+    if (shouldSleepBounce){
+      ball.vy = 0;
+      ball.vx *= 0.5;
+      ball.omega *= 0.5;
+    }
+  }
+
+  function setFeedback(text, duration = 1.2){
+    state.feedback = text;
+    state.feedbackTimer = duration;
+  }
+
+  function spawnParticles(x, y, color, count = 16, speed = 240){
+    for (let i = 0; i < count; i++){
+      const a = rand(-Math.PI, 0);
+      const sp = rand(speed * 0.4, speed);
+      state.particles.push({
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        life: rand(0.32, 0.85),
+        age: 0,
+        size: rand(1.8, 4.2),
+        color
+      });
+    }
+  }
+
+  function pickDefenseCup(exceptId){
+    const alive = cups.filter((c) => !c.hit && c.id !== exceptId);
+    if (!alive.length) return null;
+    // Defensive Wahl nach offizieller Bounce-Logik: eher "leichte" Cups zuerst entfernen
+    let best = null;
+    let bestThreat = Infinity;
+    for (const c of alive){
+      const dist = Math.hypot(c.cx - LAUNCH.x, (c.cy - LAUNCH.y) * 0.6);
+      const frontBonus = (TABLE_Y - c.cy) * 0.42;
+      const threat = dist + frontBonus;
+      if (threat < bestThreat){
+        bestThreat = threat;
+        best = c;
+      }
+    }
+    return best;
+  }
+
+  function applyOfficialBounceSecondCup(primaryCup){
+    if (!(OFFICIAL_RULESET && state.shot.tableBounce)) return null;
+    const second = pickDefenseCup(primaryCup.id);
+    if (!second) return null;
+    second.hit = true;
+    second.vanish = 0;
+    second.wobble = 1;
+    second.wobbleT = 0;
+    spawnParticles(second.cx, second.cy, '#fb7185', 14, 210);
+    return second;
+  }
+
+  function markSink(cup, x, y){
+    cup.hit = true;
+    cup.vanish = 0;
+    cup.wobble = 0;
+    const secondCup = applyOfficialBounceSecondCup(cup);
+
+    const clean = !state.shot.tableBounce && state.shot.rimHits === 0 && state.shot.wallHits === 0;
+    const bank = state.shot.tableBounce && state.shot.rimHits === 0;
+    const drop = state.shot.entrySpeed > 840 ? 1.05 : 1;
+    const comboMult = 1 + Math.min(5, state.combo) * 0.15;
+    let points = 100;
+    if (clean) points += 75;
+    if (bank) points += 40;
+    if (secondCup) points += 70;
+    points = Math.round(points * comboMult * drop);
+    state.score += points;
+    state.combo += 1;
+    state.bestCombo = Math.max(state.bestCombo, state.combo);
+
+    spawnParticles(x, y, clean ? '#34d399' : '#22d3ee', clean ? 26 : 18, clean ? 330 : 250);
+    pulseHaptic(clean ? [20, 24, 20] : [16], 90);
+    addShake(clean ? 8 : 5);
+    if (secondCup) setFeedback(`Bounce Shot! +${points} (2 Becher)`, 1.5);
+    else setFeedback(clean ? `Swish! +${points}` : bank ? `Bank Shot! +${points}` : `Treffer! +${points}`, 1.4);
+
+    state.ball.active = false;
+    state.ball.onTable = false;
+    state.ball.restTime = 0;
+    state.resetTimer = RESET_DELAY;
+  }
+
+  const input = { activePointerId: null };
+
+  function beginAim(clientX, clientY){
+    const {x,y} = canvasToLocal({ clientX, clientY });
+    const dx = x - LAUNCH.x, dy = y - LAUNCH.y;
+    if (Math.hypot(dx,dy) > 70 || state.ball.active) return false;
+    drag = { active:true, sx:x, sy:y, x, y };
+    state.aiming = true;
+    state.showPreview = true;
+    return true;
+  }
+
+  function updateAim(clientX, clientY){
+    if(!drag.active) return;
+    const {x,y} = canvasToLocal({ clientX, clientY });
+    drag.x = x;
+    drag.y = y;
+  }
+
+  function cancelAim(){
+    drag.active = false;
+    state.aiming = false;
+    state.showPreview = false;
+  }
+
+  function releaseAimAndThrow(){
+    if(!drag.active) return false;
+    drag.active = false;
+    state.aiming = false;
+    unlockAudioContext();
+    // Wurf erzeugen – intuitiv: vom Ball in Zielrichtung ziehen (länger = stärker)
+    const dxAim = (drag.x - LAUNCH.x);
+    const dyAim = (drag.y - LAUNCH.y);
+    const len = Math.min(MAX_THROW_DIST, Math.hypot(dxAim, dyAim) || 1);
+    const speed = Math.min(MAX_SPEED, len * THROW_SCALE);
+    // Winkel über Horizont (0°..90°) aus dem Aim‑Vektor bestimmen
+    let ang = Math.atan2(LAUNCH.y - drag.y, drag.x - LAUNCH.x); // oben = positiv
+    const minA = (10*Math.PI)/180, maxA = (70*Math.PI)/180;
+    const clampedA = Math.min(Math.max(ang, minA), maxA);
+    const powerRatio = clamp(speed / MAX_SPEED, 0, 1);
+    const overshoot = Math.max(0, speed - IDEAL_THROW_SPEED);
+    const jitterMag = (overshoot / MAX_SPEED) * 140;
+    const vx = Math.cos(clampedA) * speed + rand(-jitterMag, jitterMag);
+    const vy = -Math.sin(clampedA) * speed + rand(-jitterMag * 0.45, jitterMag * 0.22);
+    // Default auf leichten Topspin in Wurfrichtung (stabilerer Vorwaerts-Bounce)
+    const omegaBase = -(Math.sin(clampedA) * 5.2 + powerRatio * 1.4);
+    const omega = clamp(omegaBase + rand(-0.9, 0.9), -11, 8);
+    state.ball.x = LAUNCH.x; state.ball.y = LAUNCH.y; state.ball.px = LAUNCH.x; state.ball.py = LAUNCH.y;
+    state.ball.vx = vx; state.ball.vy = vy; state.ball.omega = omega; state.ball.onTable = false; state.ball.restTime = 0;
+    state.throws += 1;
+    state.shot = { rimHits: 0, wallHits: 0, tableBounce: false, releasedSpeed: speed, entrySpeed: 0 };
+    state.ball.active = true; state.showPreview = false; state.won = false;
+    if (powerRatio < 0.22) setFeedback('Zu wenig Power.', 0.8);
+    else if (powerRatio > 0.92) setFeedback('Volles Risiko! Viel Spin und Streuung.', 0.95);
+    else setFeedback('Sauberer Release.', 0.75);
+    return true;
+  }
+
+  function onPointerDown(e){
+    if (input.activePointerId !== null) return;
+    if (!beginAim(e.clientX, e.clientY)) return;
+    input.activePointerId = e.pointerId;
+    unlockAudioContext();
+    if (cvs.setPointerCapture) cvs.setPointerCapture(e.pointerId);
+    blockNativeGesture(e);
+  }
+
+  function onPointerMove(e){
+    if (input.activePointerId !== e.pointerId) return;
+    updateAim(e.clientX, e.clientY);
+    blockNativeGesture(e);
+  }
+
+  function onPointerUp(e){
+    if (input.activePointerId !== e.pointerId) return;
+    if (cvs.releasePointerCapture && cvs.hasPointerCapture(e.pointerId)) cvs.releasePointerCapture(e.pointerId);
+    input.activePointerId = null;
+    releaseAimAndThrow();
+    blockNativeGesture(e);
+  }
+
+  function onPointerCancel(e){
+    if (input.activePointerId !== e.pointerId) return;
+    if (cvs.releasePointerCapture && cvs.hasPointerCapture(e.pointerId)) cvs.releasePointerCapture(e.pointerId);
+    input.activePointerId = null;
+    cancelAim();
+    blockNativeGesture(e);
+  }
+
+  if (window.PointerEvent){
+    cvs.addEventListener('pointerdown', onPointerDown, { passive:false });
+    cvs.addEventListener('pointermove', onPointerMove, { passive:false });
+    cvs.addEventListener('pointerup', onPointerUp, { passive:false });
+    cvs.addEventListener('pointercancel', onPointerCancel, { passive:false });
+  } else {
+    let legacyTouchId = null;
+    const getTouchById = (touches, id) => {
+      for (let i = 0; i < touches.length; i++){
+        if (touches[i].identifier === id) return touches[i];
+      }
+      return null;
+    };
+    cvs.addEventListener('mousedown', (e) => { if (beginAim(e.clientX, e.clientY)) blockNativeGesture(e); }, { passive:false });
+    window.addEventListener('mousemove', (e) => { updateAim(e.clientX, e.clientY); }, { passive:false });
+    window.addEventListener('mouseup', () => { releaseAimAndThrow(); });
+    cvs.addEventListener('touchstart', (e) => {
+      if (legacyTouchId !== null || !e.changedTouches.length) return;
+      const touch = e.changedTouches[0];
+      if (beginAim(touch.clientX, touch.clientY)){
+        legacyTouchId = touch.identifier;
+        blockNativeGesture(e);
+      }
+    }, { passive:false });
+    cvs.addEventListener('touchmove', (e) => {
+      if (legacyTouchId === null) return;
+      const touch = getTouchById(e.changedTouches, legacyTouchId) || getTouchById(e.touches, legacyTouchId);
+      if (!touch) return;
+      updateAim(touch.clientX, touch.clientY);
+      blockNativeGesture(e);
+    }, { passive:false });
+    window.addEventListener('touchend', (e) => {
+      if (legacyTouchId === null) return;
+      const touch = getTouchById(e.changedTouches, legacyTouchId);
+      if (!touch) return;
+      legacyTouchId = null;
+      releaseAimAndThrow();
+    }, { passive:false });
+    window.addEventListener('touchcancel', () => {
+      legacyTouchId = null;
+      cancelAim();
+    }, { passive:false });
+  }
+
+  if (overlayEl){
+    startGameBtn?.addEventListener('click', () => {
+      unlockAudioContext();
+      setOverlayVisible(false);
+      setFeedback('Zieh den Ball und lass los.', 1.1);
+    });
+    startFullscreenBtn?.addEventListener('click', async () => {
+      unlockAudioContext();
+      if (isEmbedded){
+        const opened = openStandaloneGame();
+        if (!opened) setFeedback('Direktes Offnen wurde blockiert. Bitte in neuem Tab offnen.', 2.2);
+        return;
+      }
+      const entered = await requestFullscreenIfPossible();
+      setOverlayVisible(false);
+      if (entered) setFeedback('Vollbild aktiv. Viel Erfolg!', 1.1);
+      else setFeedback(getFullscreenUnsupportedMessage(), 3.0);
+    });
+  }
+
+  fullscreenBtn?.addEventListener('click', async () => {
+    unlockAudioContext();
+    if (isEmbedded){
+      const opened = openStandaloneGame();
+      if (!opened) setFeedback('Direktes Offnen wurde blockiert. Bitte in neuem Tab offnen.', 2.2);
+      return;
+    }
+    if (!canRequestFullscreen()){
+      endGameAndLeave();
+      return;
+    }
+    const entered = await requestFullscreenIfPossible();
+    if (!entered) setFeedback(getFullscreenUnsupportedMessage(), 3.0);
+  });
+  exitFullscreenBtn?.addEventListener('click', async () => {
+    unlockAudioContext();
+    if (getFullscreenElement()){
+      const exited = await exitFullscreenIfPossible();
+      if (!exited) setFeedback('Vollbild konnte nicht beendet werden.', 1.6);
+      return;
+    }
+    endGameAndLeave();
+  });
+
+  cvs.addEventListener('wheel', blockNativeGesture, { passive:false });
+  cvs.addEventListener('gesturestart', blockNativeGesture, { passive:false });
+  cvs.addEventListener('gesturechange', blockNativeGesture, { passive:false });
+  cvs.addEventListener('gestureend', blockNativeGesture, { passive:false });
+  resetBtn.addEventListener('click', () => {
+    unlockAudioContext();
+    newGame();
+  });
+
+  function resetBallToLaunch(){
+    state.ball = { x:LAUNCH.x, y:LAUNCH.y, px:LAUNCH.x, py:LAUNCH.y, vx:0, vy:0, omega:0, onTable:false, restTime:0, active:false };
+    state.aiming = false;
+    state.showPreview = false; // Vorschau erst beim nächsten Zielen
+  }
+
+  // ===== Physik + Kollision =====
+  // Continuous collision detection: earliest intersection t in [0,1] for segment P(px,py)→Q(nx,ny) with circle (cx,cy,R)
+  function segmentCircleFirstT(px, py, nx, ny, cx, cy, R){
+    const dx = nx - px, dy = ny - py;
+    const fx = px - cx, fy = py - cy;
+    const a = dx*dx + dy*dy;
+    const b = 2*(fx*dx + fy*dy);
+    const c = fx*fx + fy*fy - R*R;
+    const D = b*b - 4*a*c;
+    if (D < 0 || a === 0) return null; // no hit or degenerate move
+    const sqrtD = Math.sqrt(D);
+    const inv = 1/(2*a);
+    const t1 = (-b - sqrtD) * inv;
+    const t2 = (-b + sqrtD) * inv;
+    // choose earliest valid in [0,1]
+    let t = null;
+    if (t1 >= 0 && t1 <= 1) t = t1;
+    if (t2 >= 0 && t2 <= 1) t = (t === null) ? t2 : Math.min(t, t2);
+    return t;
+  }
+
+  function step(dt){
+    const b = state.ball;
+    if(!b.active) return;
+
+    const tableY = TABLE_Y - BALL_R;
+    const SUB = computeSubsteps(b.vx, b.vy, dt);
+    const subdt = dt / SUB;
+    for (let s=0;s<SUB;s++){
+      if (b.y > tableY) b.y = tableY;
+      const px = b.x, py = b.y;
+      let segStartX = px, segStartY = py;
+      let segVxStart = b.vx, segVyStart = b.vy;
+      let segmentDt = subdt;
+
+      if (b.onTable){
+        integrateRollingOnTable(b, subdt);
+      } else {
+        const nextV = integrateAirVelocity(b.vx, b.vy, subdt);
+        b.vx = nextV.vx;
+        b.vy = nextV.vy;
+      }
+      let nx = b.x + b.vx * subdt;
+      let ny = b.y + b.vy * subdt;
+      let sank = false;
+
+      // Tisch-CCD + Penetration-Resolution: erst Kontaktpunkt, dann Impulsantwort
+      if (py <= tableY && ny >= tableY && b.vy > 0){
+        const denom = ny - py;
+        const tHit = Math.abs(denom) > 1e-8 ? clamp((tableY - py) / denom, 0, 1) : 1;
+        const hitX = px + (nx - px) * tHit;
+        b.x = hitX;
+        b.y = tableY;
+        resolveTableBounce(b, tableY);
+        state.shot.tableBounce = true;
+        addShake(1.3);
+        pulseHaptic(7, 45);
+
+        const remainDt = (1 - tHit) * subdt;
+        if (remainDt > 1e-5){
+          segStartX = b.x;
+          segStartY = b.y;
+          segVxStart = b.vx;
+          segVyStart = b.vy;
+          segmentDt = remainDt;
+          if (b.onTable){
+            integrateRollingOnTable(b, remainDt);
+          } else {
+            const remainV = integrateAirVelocity(b.vx, b.vy, remainDt);
+            b.vx = remainV.vx;
+            b.vy = remainV.vy;
+          }
+          nx = segStartX + b.vx * remainDt;
+          ny = segStartY + b.vy * remainDt;
+        } else {
+          nx = b.x;
+          ny = b.y;
+          segmentDt = 0;
+        }
+      }
+      if (ny < tableY - 0.75) b.onTable = false;
+
+      // Ball liegt/rollt auf dem Tisch und wird nicht mehr relevant -> sauber zurücksetzen
+      if (b.onTable){
+        b.y = tableY;
+        const vxM = Math.abs(pxToM(b.vx));
+        const omegaRad = Math.abs(b.omega * OMEGA_TO_RAD);
+        if (vxM < ROLLING_SLEEP_SPEED_MPS && omegaRad < ROLLING_SLEEP_OMEGA_RAD) b.restTime += subdt;
+        else b.restTime = 0;
+      } else {
+        b.restTime = 0;
+      }
+      if (b.restTime > ROLLING_SETTLE_TIME){
+        b.active = false;
+        state.resetTimer = RESET_DELAY;
+        state.combo = 0;
+        setFeedback('Ball liegt. Nächster Wurf.', 1.0);
+        break;
+      }
+      if (segmentDt <= 1e-6){
+        b.x = nx; b.y = ny; b.px = px; b.py = py;
+        continue;
+      }
+
+      // Cup-Kollisionen
+      let collided = false;
+      for (const cup of cups){
+        if (cup.hit) continue;
+        const rimR = cup.r;
+
+        // --- Zeiten für Ebene und Rim berechnen (kontinuierlich) ---
+        let tPlane = null, xAtPlane = null;
+        if (ny !== segStartY) {
+          const t = (cup.cy - segStartY) / (ny - segStartY);
+          if (t >= 0 && t <= 1) {
+            tPlane = t;
+            xAtPlane = segStartX + (nx - segStartX) * t;
+          }
+        }
+        const rxE = rimR + BALL_R;            // x-Radius inkl. Ball
+        const ryE = cup.ry + BALL_R;          // y-Radius inkl. Ball (Ellipse!)
+        const rimBand = Math.max(2, Math.min(3, cup.ry * 0.3)); // schmaler, nur sehr nahe an der Öffnungsebene
+        const rimHit = segmentEllipseBandFirstHit(segStartX, segStartY, nx, ny, cup.cx, cup.cy, rxE, ryE, rimBand);
+        const tRim = rimHit ? rimHit.t : null;
+
+        // Entry-Zonen: innen = sink, Lip = Bounce/Lip-out
+        const innerGate = Math.max(4, rimR - BALL_R * CUP_INNER_GATE_SHRINK);
+        const lipGate = Math.max(innerGate + 2.2, rimR - BALL_R * CUP_LIP_GATE_SHRINK);
+        const vyAtPlane = (tPlane !== null) ? (segVyStart + (b.vy - segVyStart) * tPlane) : b.vy;
+        const vxAtPlane = (tPlane !== null) ? (segVxStart + (b.vx - segVxStart) * tPlane) : b.vx;
+        const entrySpeed = Math.hypot(vxAtPlane, vyAtPlane);
+        const falling = vyAtPlane > CUP_MIN_ENTRY_VY; // nach unten unterwegs (zeitnah zum Ebenenschnitt)
+        const dynamicEntryGate = clamp(innerGate + (vyAtPlane - 380) * 0.004, innerGate - 1.2, innerGate + 2.1);
+        const canCleanDrop = Math.abs(vxAtPlane) < 1320;
+        const planeBeforeRim = (tPlane !== null) && (tRim === null || tPlane <= tRim + EPS_T);
+
+        // --- HARTE TESTREGEL 2: Wenn aktiviert, sinke bei beliebigem Kontakt-Radius (Distanz <= Rim+Ball) ---
+        if (ALWAYS_SINK && ALWAYS_SINK_CONTACT_MODE) {
+          const dxC = nx - cup.cx;
+          const dyC = ny - cup.cy;
+          const dist = Math.hypot(dxC, dyC);
+          const contact = dist <= (rimR + BALL_R + 0.5);
+          if (contact && (b.vy > 0 || vyAtPlane > 0)) {
+            const snapX = (tPlane !== null) ? xAtPlane : nx;
+            nx = snapX; ny = cup.cy;
+            markSink(cup, nx, ny);
+            sank = true;
+            break;
+          }
+        }
+
+        // Ebenenschnitt entscheidet: sauberer Einlass oder Lip-out
+        if (tPlane !== null) {
+          const xOff = Math.abs(xAtPlane - cup.cx);
+          if (falling && canCleanDrop && xOff <= dynamicEntryGate && planeBeforeRim && !b.onTable) {
+            nx = xAtPlane; ny = cup.cy;
+            state.shot.entrySpeed = entrySpeed;
+            markSink(cup, nx, ny);
+            sank = true;
+            break;
+          }
+
+          // Lip-Zone: Ball trifft die Kante statt sauber zu fallen
+          if (falling && xOff <= lipGate && planeBeforeRim) {
+            const side = (xAtPlane < cup.cx) ? -1 : 1;
+            const lipAbsorb = 0.52;
+            b.vx = (-side * Math.abs(b.vx) * lipAbsorb) + side * 52;
+            b.vy = -Math.abs(vyAtPlane) * 0.28;
+            b.omega += side * 1.9;
+            nx = cup.cx + side * (lipGate + 0.9);
+            ny = cup.cy - 0.4;
+            state.shot.rimHits += 1;
+            cup.wobble = Math.min(1, cup.wobble + 0.82);
+            addShake(2.4);
+            pulseHaptic(10, 55);
+            spawnParticles(nx, ny, '#fda4af', 10, 140);
+            collided = true;
+            break;
+          }
+        }
+
+        // Soft-Fallback: steiler Rim-Treffer nahe Zentrum kann noch reinfallen
+        if (tRim !== null && vyAtPlane > 560 && Math.abs(rimHit.hx - cup.cx) <= innerGate + GOD_GATE_EASE) {
+          nx = rimHit.hx; ny = cup.cy;
+          state.shot.entrySpeed = Math.hypot(b.vx, vyAtPlane);
+          markSink(cup, nx, ny);
+          sank = true;
+          break;
+        }
+
+        // --- ansonsten: Rim-Kontakt (Reflexion) ---
+        if (tRim !== null) {
+          const cxh = rimHit.hx;
+          const cyh = rimHit.hy;
+          // Ellipsen-Normalenrichtung (Gradient von f(x,y)= (x-cx)^2/rxE^2 + (y-cy)^2/ryE^2 - 1)
+          const gx = (cxh - cup.cx) / (rxE * rxE);
+          const gy = (cyh - cup.cy) / (ryE * ryE);
+          const invN = 1 / (Math.hypot(gx, gy) || 1e-6);
+          const nxx = gx * invN, nyy = gy * invN;
+          const vdot = b.vx * nxx + b.vy * nyy;
+          const tangx = -nyy, tangy = nxx;
+          const vt = b.vx * tangx + b.vy * tangy;
+          b.vx = b.vx - 2 * vdot * nxx;
+          b.vy = b.vy - 2 * vdot * nyy;
+          // leichte Spin-Kopplung an die Tangentialrichtung des Rims
+          const spinImpulse = clamp((b.omega * 0.9 - vt * 0.004), -120, 120);
+          b.vx = b.vx * 0.72 + tangx * spinImpulse;
+          b.vy = b.vy * 0.72 + tangy * spinImpulse * 0.4;
+          b.omega = b.omega * 0.72 - spinImpulse * 0.012;
+          b.onTable = false;
+          state.shot.rimHits += 1;
+          cup.wobble = Math.min(1, cup.wobble + 0.7);
+          addShake(2.2);
+          pulseHaptic(9, 55);
+          spawnParticles(cxh, cyh, '#fda4af', 8, 130);
+          // kleine Separation entlang der Normalen, um Nachpenetration zu vermeiden
+          const sep = 0.5;
+          nx = cxh + nxx * sep;
+          ny = cyh + nyy * sep;
+          collided = true;
+          break;
+        }
+
+        // --- Seitenwand-Kontakt (vereinfachtes Modell: vertikale Wände) ---
+        if (!collided && ny > cup.cy + 1) {
+          const bodyH = rimR * 2.8;                     // Höhe des Sicht-Körpers (wie im Draw)
+          const yMin = cup.cy + Math.max(cup.ry * 0.2, 2);
+          const yMax = cup.cy + bodyH;
+          const xLeft = cup.cx - rimR * 0.95;           // leicht innerhalb des Rims, damit Rim-Physik Vorrang hat
+          const xRight = cup.cx + rimR * 0.95;
+          const dx = nx - segStartX, dy = ny - segStartY;
+
+          let tSide = null, side = 0; // -1 = links, +1 = rechts
+          // Linke Wand: wir bewegen uns nach rechts
+          if (dx > 1e-6) {
+            const tL = (xLeft - BALL_R - segStartX) / dx;
+            if (tL >= 0 && tL <= 1) {
+              const yL = segStartY + dy * tL;
+              if (yL >= yMin && yL <= yMax) { tSide = tL; side = -1; }
+            }
+          }
+          // Rechte Wand: wir bewegen uns nach links
+          if (dx < -1e-6) {
+            const tR = (xRight + BALL_R - segStartX) / dx;
+            if (tR >= 0 && tR <= 1) {
+              const yR = segStartY + dy * tR;
+              if (yR >= yMin && yR <= yMax) {
+                if (tSide === null || tR < tSide) { tSide = tR; side = +1; }
+              }
+            }
+          }
+
+          if (tSide !== null) {
+            // Auf Treffpunkt spulen
+            const hitX = segStartX + dx * tSide;
+            const hitY = segStartY + dy * tSide;
+            // Normale der Wand ist horizontal
+            const nxx = side; // -1 (links) oder +1 (rechts)
+            const nyy = 0;
+            // Geschwindigkeit spiegeln + dämpfen
+            const vdot = b.vx * nxx + b.vy * nyy; // = side * vx
+            b.vx = b.vx - (1 + WALL_REST) * vdot * nxx; // ergibt ~-REST*vx bei idealem Stoß
+            b.vy = b.vy * WALL_TANG;                     // tangentiale Dämpfung
+            b.omega += side * 1.3;
+            b.onTable = false;
+            state.shot.wallHits += 1;
+            cup.wobble = Math.min(1, cup.wobble + 0.45);
+            addShake(1.5);
+            pulseHaptic(8, 55);
+            // leichte Separation aus der Wand
+            const sep = 0.6;
+            nx = hitX + nxx * sep;
+            ny = hitY + nyy * sep;
+            collided = true;
+            break;
+          }
+        }
+      }
+
+      if (sank) { b.x = nx; b.y = ny; b.px = px; b.py = py; break; }
+
+      b.x = nx;
+      b.y = b.onTable ? tableY : ny;
+      b.px = px; b.py = py; // optional persist, helpful for debugging/consistency
+
+      // Out of bounds
+      if (b.x > W + 80 || b.y > H + 80 || b.x < -80){
+        b.active = false;
+        state.resetTimer = RESET_DELAY;
+        state.combo = 0;
+        setFeedback('Daneben. Korrigiere Winkel oder Power.', 1.2);
+        break;
+      }
+    }
+
+    // Win?
+    if (!state.won && cups.every(c => c.hit)) {
+      state.won = true;
+      setFeedback('Alle Becher getroffen! Stark gespielt.', 2.2);
+      addShake(6);
+      spawnParticles(W * 0.55, H * 0.28, '#facc15', 46, 360);
+    }
+  }
+
+  // ===== Render =====
+  function drawBackground(){
+    // Tisch
+    ctx.fillStyle = '#0000';
+    ctx.clearRect(0,0,W,H);
+
+    // Bodenlicht Verlauf
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,'rgba(255,255,255,0.02)');
+    g.addColorStop(1,'rgba(0,0,0,0.25)');
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+    // Tischplatte (sichtbar dicker), Oberkante bleibt TABLE_Y
+    const TOP_TH = 16;   // Dicke der obersten Platte
+    const APRON_H = 36;  // Höhe der Vorderkante unterhalb der Oberkante
+
+    // Top surface
+    ctx.fillStyle = '#734c2f';
+    ctx.fillRect(40, TABLE_Y - TOP_TH, W - 80, TOP_TH);
+
+    // Front apron mit leichtem Verlauf
+    const gWood = ctx.createLinearGradient(0, TABLE_Y, 0, TABLE_Y + APRON_H);
+    gWood.addColorStop(0, '#5f3f29');
+    gWood.addColorStop(1, '#4a2f1f');
+    ctx.fillStyle = gWood;
+    ctx.fillRect(40, TABLE_Y, W - 80, APRON_H);
+
+    // kleine Highlight-Kante oben
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(40, TABLE_Y - 1, W - 80, 1);
+
+    // Schattenkante unter der Front
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(40, TABLE_Y + APRON_H, W - 80, 4);
+  }
+
+  function drawCup(c){
+    const {cx, cy, r, ry, vanish, wobble, wobbleT} = c;
+    const alpha = 1 - Math.min(1, vanish);
+    if (alpha <= 0.02) return;
+    const wobbleOffset = Math.sin(wobbleT * 24) * wobble * 4.5;
+    const drawX = cx + wobbleOffset;
+
+    // Schatten
+    ctx.beginPath();
+    ctx.ellipse(drawX, cy + ry*0.9 + 10, r*0.9, ry*0.35, 0, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(0,0,0,${0.25*alpha})`;
+    ctx.fill();
+
+    // Körper (konisch) – etwas höher und weniger breit für natürlichere Proportionen
+    ctx.beginPath();
+    ctx.moveTo(drawX - r, cy);
+    ctx.lineTo(drawX + r, cy);
+    ctx.lineTo(drawX + r*0.72, cy + r*2.8);
+    ctx.lineTo(drawX - r*0.72, cy + r*2.8);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(drawX, cy, drawX, cy + r*2.8);
+    grad.addColorStop(0, `rgba(240,56,86,${alpha})`);
+    grad.addColorStop(1, `rgba(187,16,49,${alpha})`);
+    ctx.fillStyle = grad; ctx.fill();
+
+    // Öffnung (Rim) – Ellipse
+    ctx.beginPath();
+    ctx.ellipse(drawX, cy, r, ry, 0, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${0.95*alpha})`;
+    ctx.fill();
+
+    // Innenschatten
+    ctx.beginPath();
+    ctx.ellipse(drawX, cy + ry*0.20, r*0.9, ry*0.72, 0, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(0,0,0,${0.13*alpha})`;
+    ctx.fill();
+
+  }
+
+  function drawBall(){
+    const b = state.ball;
+    const x = b.x;
+    const y = b.y;
+    ctx.beginPath();
+    ctx.arc(x, y, BALL_R, 0, Math.PI*2);
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = 'rgba(0,0,0,0.25)';
+    ctx.shadowBlur = 6; ctx.fill(); ctx.shadowBlur = 0;
+
+    // Spin-Indikator hilft beim Lernen des Wurfverhaltens
+    const spinPhase = (performance.now() * 0.0012 * b.omega);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(spinPhase);
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, BALL_R * 0.68, -0.9, 0.9);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawParticles(){
+    for (const p of state.particles){
+      const life = 1 - (p.age / p.life);
+      if (life <= 0) continue;
+      ctx.globalAlpha = Math.max(0, life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - p.size * 0.5, p.y - p.size * 0.5, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawPreview(){
+    if (!state.showPreview) return;
+    // Aim aus Drag-Vektor
+    const dxAim = (drag.x - LAUNCH.x);
+    const dyAim = (drag.y - LAUNCH.y);
+    const len = Math.min(MAX_THROW_DIST, Math.hypot(dxAim, dyAim) || 1);
+    const speed = Math.min(MAX_SPEED, len * THROW_SCALE);
+    const powerRatio = clamp(speed / MAX_SPEED, 0, 1);
+    let ang = Math.atan2(LAUNCH.y - drag.y, drag.x - LAUNCH.x);
+    const minA = (10*Math.PI)/180, maxA = (70*Math.PI)/180;
+    const clampedA = Math.min(Math.max(ang, minA), maxA);
+
+    // Startzustand wie im echten Wurf
+    let x = LAUNCH.x, y = LAUNCH.y;
+    let vvx = Math.cos(clampedA) * speed;
+    let vvy = -Math.sin(clampedA) * speed; // negativ = nach oben
+
+    // Integration identisch zu step(): semi-implicit Euler + quadratischer Drag
+    let previewCount = 0;
+    const steps = 180; // max. Vorschaupunkte
+
+    outer: for (let i=0; i<steps; i++){
+      const sub = computeSubsteps(vvx, vvy, FIXED_DT);
+      const subdt = FIXED_DT / sub;
+      for (let s=0; s<sub; s++){
+        const nextV = integrateAirVelocity(vvx, vvy, subdt);
+        vvx = nextV.vx;
+        vvy = nextV.vy;
+        // Bewegung
+        x += vvx * subdt;
+        y += vvy * subdt;
+
+        // Tisch-Kollision: Vorschau hier beenden (erste Aufsetzstelle)
+        if (y >= TABLE_Y - BALL_R){
+          y = TABLE_Y - BALL_R;
+          if (previewCount < PREVIEW_CAP){
+            previewPointsX[previewCount] = x;
+            previewPointsY[previewCount] = y;
+            previewCount++;
+          }
+          break outer;
+        }
+        // Aus dem Bild: Vorschau beenden
+        if (x > W + 40 || x < -40 || y > H + 40) {
+          if (previewCount < PREVIEW_CAP){
+            previewPointsX[previewCount] = x;
+            previewPointsY[previewCount] = y;
+            previewCount++;
+          }
+          break outer;
+        }
+      }
+      if (previewCount < PREVIEW_CAP){
+        previewPointsX[previewCount] = x;
+        previewPointsY[previewCount] = y;
+        previewCount++;
+      } else {
+        break;
+      }
+    }
+
+    if (previewCount > 0){
+      ctx.beginPath();
+      ctx.setLineDash([6,6]);
+      ctx.moveTo(LAUNCH.x, LAUNCH.y);
+      for (let i = 0; i < previewCount; i++) ctx.lineTo(previewPointsX[i], previewPointsY[i]);
+      const hue = 190 - powerRatio * 150;
+      ctx.strokeStyle = `hsla(${hue}, 90%, 70%, 0.8)`;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Aim‑Pfeil
+    ctx.beginPath();
+    ctx.moveTo(LAUNCH.x, LAUNCH.y);
+    ctx.lineTo(drag.x, drag.y);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(LAUNCH.x, LAUNCH.y, 12 + powerRatio * 8, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.stroke();
+  }
+
+  function drawHUD(){
+    // Restliche Cups
+    let left = 0;
+    for (let i = 0; i < cups.length; i++){
+      if (!cups[i].hit) left++;
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = '700 16px system-ui, -apple-system, Segoe UI, Roboto';
+    ctx.fillText(`Becher: ${left}`, 18, 28);
+    ctx.font = '14px system-ui, -apple-system, Segoe UI, Roboto';
+    ctx.fillText(`Wurfe: ${state.throws}`, 18, 48);
+    ctx.fillText(`Score: ${state.score}`, 18, 68);
+
+    if (state.combo > 1){
+      ctx.fillStyle = '#facc15';
+      ctx.font = '700 15px system-ui, -apple-system, Segoe UI, Roboto';
+      ctx.fillText(`Combo x${state.combo}`, 18, 90);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    }
+
+    const msg = state.feedback || '';
+    if (msg){
+      ctx.font = '600 15px system-ui, -apple-system, Segoe UI, Roboto';
+      const pad = 10;
+      const mW = ctx.measureText(msg).width;
+      const boxW = mW + pad * 2;
+      const x = (W - boxW) / 2;
+      const y = 18;
+      ctx.fillStyle = 'rgba(8,13,20,0.52)';
+      ctx.fillRect(x, y, boxW, 30);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText(msg, x + pad, y + 20);
+    }
+
+    if (OFFICIAL_RULESET){
+      ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto';
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      const ruleText = isPortraitViewport && prefersCoarseInput
+        ? 'Tipp: Querformat fur mehr Prazision | Bounce Shot = 2 Becher'
+        : 'Offizielle Regel: Bounce Shot = 2 Becher';
+      ctx.fillText(ruleText, 18, H - 18);
+    }
+
+    if (state.showPreview){
+      const len = Math.min(MAX_THROW_DIST, Math.hypot(drag.x - LAUNCH.x, drag.y - LAUNCH.y) || 1);
+      const speed = Math.min(MAX_SPEED, len * THROW_SCALE);
+      const ratio = clamp(speed / MAX_SPEED, 0, 1);
+      const barW = 170, barH = 10, x = W - barW - 20, y = 24;
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(x, y, barW, barH);
+      const hue = 190 - ratio * 150;
+      ctx.fillStyle = `hsl(${hue} 88% 58%)`;
+      ctx.fillRect(x, y, barW * ratio, barH);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.strokeRect(x, y, barW, barH);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto';
+      ctx.fillText('Power', x, y - 6);
+    }
+
+    if (state.won){
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 22px system-ui, -apple-system, Segoe UI, Roboto';
+      const msg = 'Sehr gut, du bist bereit für die nächsten Meier Open!';
+      const mW2 = ctx.measureText(msg).width;
+      ctx.fillText(msg, (W-mW2)/2, H*0.42);
+      ctx.font = '16px system-ui, -apple-system, Segoe UI, Roboto';
+      const sub = `Score ${state.score} | Beste Combo x${Math.max(state.bestCombo, state.combo)}`;
+      const sW = ctx.measureText(sub).width;
+      ctx.fillText(sub, (W-sW)/2, H*0.42 + 28);
+      const sub2 = 'Klicke "Neues Spiel" fur eine weitere Runde.';
+      const sW2 = ctx.measureText(sub2).width;
+      ctx.fillText(sub2, (W-sW2)/2, H*0.42 + 54);
+    }
+  }
+
+  // ===== Game Loop =====
+  function tick(ts){
+    if (state.lastT == null) state.lastT = ts;
+    let frameDt = Math.min(0.05, (ts - state.lastT)/1000); // Framezeit clampen
+    state.lastT = ts;
+
+    // Vanish-Animation mit echter Framezeit
+    for (const c of cups){
+      if (c.hit && c.vanish < 1) c.vanish = Math.min(1, c.vanish + frameDt/0.22);
+      if (c.wobble > 0){
+        c.wobbleT += frameDt;
+        c.wobble = Math.max(0, c.wobble - frameDt * 2.4);
+      }
+    }
+
+    const particles = state.particles;
+    let aliveCount = 0;
+    for (let i = 0; i < particles.length; i++){
+      const p = particles[i];
+      p.age += frameDt;
+      if (p.age >= p.life) continue;
+      p.vy += 1200 * frameDt;
+      p.x += p.vx * frameDt;
+      p.y += p.vy * frameDt;
+      p.vx *= 0.992;
+      p.vy *= 0.992;
+      particles[aliveCount++] = p;
+    }
+    particles.length = aliveCount;
+
+    if (state.feedbackTimer > 0){
+      state.feedbackTimer -= frameDt;
+      if (state.feedbackTimer <= 0) state.feedback = '';
+    }
+
+    if (state.shake > 0) state.shake = Math.max(0, state.shake - frameDt * 18);
+
+    // Fester Physik-Zeitschritt (entkoppelt vom Rendern)
+    state.acc = Math.min(MAX_ACCUM, state.acc + frameDt);
+    while (state.acc >= FIXED_DT) {
+      step(FIXED_DT);
+      state.acc -= FIXED_DT;
+    }
+
+    // Automatischer Ball-Reset nach kurzer Verzögerung
+    if (state.resetTimer > 0) {
+      state.resetTimer -= frameDt;
+      if (state.resetTimer <= 0) {
+        resetBallToLaunch();
+      }
+    }
+
+    // Render
+    if (state.shake > 0){
+      ctx.save();
+      ctx.translate(rand(-state.shake, state.shake), rand(-state.shake * 0.6, state.shake * 0.6));
+    }
+    drawBackground();
+    for (let i = 0; i < cupDrawOrder.length; i++) drawCup(cups[cupDrawOrder[i]]);
+    drawPreview();
+    drawBall();
+    drawParticles();
+    if (state.shake > 0) ctx.restore();
+    drawHUD();
+
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  function newGame(){
+    cups = buildCups();
+    rebuildCupDrawOrder();
+    state.ball = { x:LAUNCH.x, y:LAUNCH.y, px:LAUNCH.x, py:LAUNCH.y, vx:0, vy:0, omega:0, onTable:false, restTime:0, active:false };
+    state.throws = 0;
+    state.won = false;
+    state.showPreview = false;
+    state.lastT = null;
+    state.acc = 0;
+    state.combo = 0;
+    state.bestCombo = 0;
+    state.score = 0;
+    state.shake = 0;
+    state.particles = [];
+    state.feedback = 'Neue Runde! Fokus auf einen ruhigen Wurf.';
+    state.feedbackTimer = 1.4;
+    state.shot = { rimHits: 0, wallHits: 0, tableBounce: false, releasedSpeed: 0, entrySpeed: 0 };
+  }
+})();
+</script>
+</body>
+</html>

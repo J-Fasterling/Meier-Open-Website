@@ -1,0 +1,41 @@
+<svg viewBox="0 0 192 48" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs>
+    <path id="ball-path" d="
+      M 210 10
+      Q 193 -5 176 30
+      Q 168 48 160 42
+      Q 152 20 144 30
+      Q 136 48 128 42
+      Q 120 20 112 30
+      Q 104 48 96 42
+      Q 88 20 80 30
+      Q 72 48 64 42
+      Q 56 20 48 30
+      Q 40 48 32 42
+      Q 24 20 16 30
+      Q 8 48 0 42
+      Q -8 30 -18 42
+    "/>
+  </defs>
+
+  <g id="cups" stroke="#8A1A1A" stroke-width="1.5" fill="#FF3B30">
+    <path d="M4 6 h24 l-2.5 32 h-19L4 6z"/>
+    <path d="M36 6 h24 l-2.5 32 h-19L36 6z"/>
+    <path d="M68 6 h24 l-2.5 32 h-19L68 6z"/>
+    <path d="M100 6 h24 l-2.5 32 h-19L100 6z"/>
+    <path d="M132 6 h24 l-2.5 32 h-19L132 6z"/>
+    <path d="M164 6 h24 l-2.5 32 h-19L164 6z"/>
+  </g>
+
+  <circle id="ball" r="6" fill="#F5F7FF">
+    <animateMotion
+      dur="6s"
+      repeatCount="indefinite"
+      calcMode="spline"
+      keySplines="0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1; 0.4 0 0.6 1"
+      keyPoints="0;0.125;0.25;0.375;0.5;0.625;0.75;0.875;1"
+      >
+      <mpath xlink:href="#ball-path"/>
+    </animateMotion>
+  </circle>
+</svg>
